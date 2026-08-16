@@ -1,0 +1,10 @@
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+    NandoJans\EntityTools\:
+        resource: '../src/'
+        exclude: ['../src/Config/', '../src/Controller/', '../src/DependencyInjection/', '../src/NandoJansEntityToolsBundle.php']
+    NandoJans\EntityTools\Service\EntityConfigRegistry:
+        arguments:
+            $configs: !tagged_iterator nando_jans.entity_tools.entity_config
