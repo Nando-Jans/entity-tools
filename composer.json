@@ -1,1 +1,24 @@
-{"name":"nando-jans/entity-tools","description":"Reusable entity CRUD controllers and index tables for Symfony","type":"symfony-bundle","license":"proprietary","autoload":{"psr-4":{"NandoJans\\EntityTools\\":"src/"}},"require":{"php":">=8.4","doctrine/doctrine-bundle":"^3.0","doctrine/orm":"^3.0","psr/log":"^3.0","symfony/form":"^7.4 || ^8.0","symfony/framework-bundle":"^7.4 || ^8.0","symfony/routing":"^7.4 || ^8.0","symfony/security-bundle":"^7.4 || ^8.0","symfony/service-contracts":"^3.0","symfony/string":"^7.4 || ^8.0"}}
+{
+  "name": "nando-jans/entity-tools",
+  "description": "Reusable entity CRUD controllers and index tables for Symfony",
+  "type": "symfony-bundle",
+  "license": "proprietary",
+  "autoload": {
+    "psr-4": {
+      "NandoJans\\EntityTools\\": "src/"
+    }
+  },
+  "require": {
+    "php": ">=8.4",
+    "doctrine/doctrine-bundle": "^3.0",
+    "doctrine/orm": "^3.0",
+    "psr/log": "^3.0",
+    "symfony/form": "^7.4 || ^8.0",
+    "symfony/framework-bundle": "^7.4 || ^8.0",
+    "symfony/routing": "^7.4 || ^8.0",
+    "symfony/security-bundle": "^7.4 || ^8.0",
+    "symfony/service-contracts": "^3.0",
+    "symfony/string": "^7.4 || ^8.0",
+    "doctrine/dbal": "^4.4"
+  }
+}

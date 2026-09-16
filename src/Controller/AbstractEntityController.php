@@ -9,6 +9,8 @@ use NandoJans\EntityTools\Service\IndexPageService;
 use NandoJans\EntityTools\Service\IndexTable;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\Form;
 use Symfony\Component\Form\FormInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -140,6 +142,10 @@ abstract class AbstractEntityController extends AbstractController
     {
     }
 
+    protected function beforeValidation(object $entity, bool $isNew): void
+    {
+    }
+
     protected function beforeDelete(object $entity): void
     {
     }
@@ -174,7 +180,7 @@ abstract class AbstractEntityController extends AbstractController
         return 'app_' . EntityConfig::getEntityName($this->getEntityClass()) . '_index';
     }
 
-    protected function getSaveRedirect(object $entity, bool $isNew): Response
+    protected function getSaveRedirect(FormInterface $form, object $entity, bool $isNew): Response
     {
         return $this->redirectToRoute($this->getIndexRoute());
     }
@@ -232,20 +238,26 @@ abstract class AbstractEntityController extends AbstractController
     private function handleForm(Request $request, FormInterface $form, object $entity, bool $isNew): Response
     {
         $form->handleRequest($request);
-        if ($form->isSubmitted() && $form->isValid()) {
-            try {
-                $this->beforeSave($entity, $isNew);
-                $this->entityManager->persist($entity);
-                $this->entityManager->flush();
-                $this->addFlash('success', $this->getSaveSuccessMessage($entity, $isNew));
 
-                return $this->getSaveRedirect($entity, $isNew);
-            } catch (\Throwable $exception) {
-                $this->logger->error('Entity save failed.', ['entity' => $entity::class, 'is_new' => $isNew, 'exception' => $exception]);
-                $this->addFlash('error', $this->getSaveErrorMessage($entity, $isNew, $exception));
+        if ($form->isSubmitted()) {
+            $this->beforeValidation($entity, $isNew);
+
+            if ($form->isValid()) {
+                try {
+                    $this->beforeSave($entity, $isNew);
+                    $this->entityManager->persist($entity);
+                    $this->entityManager->flush();
+                    $this->addFlash('success', $this->getSaveSuccessMessage($entity, $isNew));
+
+                    return $this->getSaveRedirect($form, $entity, $isNew);
+                } catch (\Throwable $exception) {
+                    $this->logger->error('Entity save failed.', ['entity' => $entity::class, 'is_new' => $isNew, 'exception' => $exception]);
+                    throw $exception;
+                    $this->addFlash('error', $this->getSaveErrorMessage($entity, $isNew, $exception));
+                }
+            } else {
+                $this->addFormErrorFlashes($form);
             }
-        } elseif ($form->isSubmitted()) {
-            $this->addFormErrorFlashes($form);
         }
 
         return $this->render($this->getEditTemplate($entity, $isNew), [...$this->getTemplateData($entity, $isNew), 'form' => $form->createView()]);
@@ -268,5 +280,86 @@ abstract class AbstractEntityController extends AbstractController
         if (!$hasErrors) {
             $this->addFlash('error', 'Het formulier bevat ongeldige gegevens.');
         }
+    }
+
+    protected function hasFlow(): bool
+    {
+        return false;
+    }
+
+    protected function getFlowFormClass(): ?string
+    {
+        return null;
+    }
+
+    #[Route('/flow', name: 'flow', methods: ['GET', 'POST'])]
+    public function flow(Request $request): Response
+    {
+        $flowFormClass = $this->getFlowFormClass();
+
+        if ($flowFormClass === null) {
+            throw $this->createNotFoundException();
+        }
+
+        $entityClass = $this->getEntityClass();
+        $entity = new $entityClass();
+
+        $this->configureNewEntity($entity, $request);
+
+        $flow = $this->createForm(
+            $flowFormClass,
+            $entity,
+            $this->getFormOptions($entity, true),
+        );
+
+        $flow->handleRequest($request);
+
+        if ($flow->isSubmitted()) {
+            $entity = $flow->getData();
+            $this->beforeValidation($entity, true);
+
+            if ($flow->isValid() && $flow->isFinished()) {
+                try {
+                    $this->beforeSave($entity, true);
+
+                    $this->entityManager->persist($entity);
+                    $this->entityManager->flush();
+
+                    $this->addFlash(
+                        'success',
+                        $this->getSaveSuccessMessage($entity, true),
+                    );
+
+                    return $this->getSaveRedirect($flow, $entity, true);
+                } catch (\Throwable $exception) {
+                    $this->logger->error('Entity flow save failed.', [
+                        'entity' => $entity::class,
+                        'exception' => $exception,
+                    ]);
+
+                    $this->addFlash(
+                        'error',
+                        $this->getSaveErrorMessage($entity, true, $exception),
+                    );
+                }
+            } elseif (!$flow->isValid()) {
+                $this->addFormErrorFlashes($flow);
+            }
+        }
+
+        $stepForm = $flow->getStepForm();
+
+        return $this->render(
+            $this->getFlowTemplate($entity),
+            [
+                ...$this->getTemplateData($entity, true),
+                'form' => $stepForm->createView(),
+            ],
+        );
+    }
+
+    protected function getFlowTemplate(object $entity): string
+    {
+        return '';
     }
 }
