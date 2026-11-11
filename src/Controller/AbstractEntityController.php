@@ -142,7 +142,7 @@ abstract class AbstractEntityController extends AbstractController
     {
     }
 
-    protected function beforeValidation(object $entity, bool $isNew): void
+    protected function beforeValidation(object $entity, bool $isNew, FormInterface $form): void
     {
     }
 
@@ -240,7 +240,7 @@ abstract class AbstractEntityController extends AbstractController
         $form->handleRequest($request);
 
         if ($form->isSubmitted()) {
-            $this->beforeValidation($entity, $isNew);
+            $this->beforeValidation($entity, $isNew, $form);
 
             if ($form->isValid()) {
                 try {
