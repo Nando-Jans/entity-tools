@@ -1,0 +1,205 @@
+<div data-controller="entity--index-table" class="{{ app.request.query.get('dialog') == '1' ? 'dialog-index-table' : '' }}">
+{% if app.request.query.get('dialog') != '1' %}
+<h2 class="m-2">{{ labelPlural }} - Overzichtspagina</h2>
+{% endif %}
+<div class="text-muted m-2">
+    {{ labelPlural }}: {{ from }} - {{ to }} van {{ total }}
+</div>
+{% block flash_messages %}
+<div class="my-3">
+    {% for type, messages in app.flashes %}
+        {% for message in messages %}
+            <div class="alert alert-{{ type == 'error' ? 'danger' : type }}">{{ message }}</div>
+        {% endfor %}
+    {% endfor %}
+</div>
+{% endblock %}
+
+<form
+    id="index-table-filter-form"
+    method="get"
+    action="{{ path(app.request.attributes.get('_route')) }}"
+    data-entity--index-table-target="form"
+    data-action="submit->entity--index-table#search"
+    data-current-page="{{ page }}"
+    data-dialog="{{ app.request.query.get('dialog') }}"
+    data-form-id="{{ app.request.query.get('form_id') }}"
+    data-item-count="{{ app.request.query.get('itemCount') }}"
+    data-columns="{{ app.request.query.all('columns') ? app.request.query.all('columns')|join(',') : app.request.query.get('columns') }}"
+>
+{% if sortField %}
+    <input type="hidden" name="sortField" value="{{ sortField }}">
+    <input type="hidden" name="sortDirection" value="{{ sortDirection }}">
+{% endif %}
+</form>
+<form method="post" action="{{ path(app.request.attributes.get('_route')) }}{{ app.request.queryString ? '?' ~ app.request.queryString : '' }}">
+<input type="hidden" name="_token" value="{{ csrf_token('index_bulk_action_' ~ app.request.attributes.get('_route')) }}">
+{% if app.request.query.get('dialog') %}
+    <input type="hidden" name="dialog" value="{{ app.request.query.get('dialog') }}">
+{% endif %}
+{% if app.request.query.get('form_id') %}
+    <input type="hidden" name="form_id" value="{{ app.request.query.get('form_id') }}">
+{% endif %}
+{% if app.request.query.get('itemCount') %}
+    <input type="hidden" name="itemCount" value="{{ app.request.query.get('itemCount') }}">
+{% endif %}
+{% if app.request.query.all('columns') %}
+    {% for column in app.request.query.all('columns') %}
+        <input type="hidden" name="columns[]" value="{{ column }}">
+    {% endfor %}
+{% elseif app.request.query.get('columns') %}
+    <input type="hidden" name="columns" value="{{ app.request.query.get('columns') }}">
+{% endif %}
+{% if sortField %}
+    <input type="hidden" name="sortField" value="{{ sortField }}">
+    <input type="hidden" name="sortDirection" value="{{ sortDirection }}">
+{% endif %}
+{% block before_table %}
+{% endblock %}
+<table class="table table-striped" id="{{ entity }}-index-table">
+    <thead>
+        <tr>
+        {% if showTableCheckboxes %}
+            <th scope="col">
+                <input
+                    type="checkbox"
+                    aria-label="Selecteer alle zichtbare rijen"
+                    data-action="change->entity--index-table#selectAll"
+                >
+            </th>
+        {% endif %}
+        {% for field, column in columns %}
+            {% set activeSort = sortField == field %}
+            {% set nextDirection = activeSort and sortDirection == 'ASC' ? 'DESC' : 'ASC' %}
+            <th scope="col" aria-sort="{{ activeSort ? (sortDirection == 'ASC' ? 'ascending' : 'descending') : 'none' }}">
+                <a href="{{ path(app.request.attributes.get('_route'), app.request.attributes.get('_route_params')|merge(app.request.query.all)|merge({sortField: field, sortDirection: nextDirection, page: 1})) }}"
+                   class="text-reset text-decoration-none"
+                   data-action="click->entity--index-table#sort"
+                   data-sort-field="{{ field }}"
+                   data-sort-direction="{{ nextDirection }}">
+                    {{ column.label }}{% if activeSort %} <span aria-hidden="true">{{ sortDirection == 'ASC' ? '↑' : '↓' }}</span>{% endif %}
+                </a>
+            </th>
+        {% endfor %}
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            {% if showTableCheckboxes %}
+                <td></td>
+            {% endif %}
+            {% set i = 0 %}
+            {% for field, column in columns %}
+                {% set i = i + 1 %}
+                <td>
+                    <input form="index-table-filter-form" type="hidden" name="filter{{ i }}Field" value="{{ field }}">
+                    <input
+                        form="index-table-filter-form"
+                        name="filter{{ i }}Value"
+                        value="{{ app.request.query.get('filter' ~ i ~ 'Value') }}"
+                        placeholder="Zoek..."
+                        class="form-control">
+                </td>
+            {% endfor %}
+        </tr>
+    {% for item in items %}
+        <tr class="item-row {{ app.request.query.get('dialog') == '1' ? 'dialog-selectable-row' : '' }}"
+            data-id="{{ item._id }}"
+            {% if app.request.query.get('dialog') == '1' %}
+                data-label="{{ item._label }}"
+            {% else %}
+                data-tutorial-navigate-url="{{ item._route }}"
+                onclick="window.location='{{ item._route }}'"
+            {% endif %}
+            style="{{ app.request.query.get('dialog') == '1' ? 'cursor: pointer;' : '' }}"
+        >
+            {% if showTableCheckboxes %}
+                <td>
+                    <input
+                        type="checkbox"
+                        name="selected[]"
+                        value="{{ item._id }}"
+                        aria-label="Selecteer rij"
+                        data-index-table-checkbox
+                        data-action="click->entity--index-table#stopRowNavigation change->entity--index-table#syncSelectAll"
+                    >
+                </td>
+            {% endif %}
+            {% for key, column in item %}
+                {% if key starts with '_' %}
+
+                {% else %}
+                <td>
+                    {% if columns[key].raw|default(false) %}
+                        {{ column|raw }}
+                    {% else %}
+                        {{ column }}
+                    {% endif %}
+                </td>
+                {% endif %}
+            {% endfor %}
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+<button type="submit" form="index-table-filter-form" hidden></button>
+<div class="table-info d-flex justify-content-between flex-row">
+    <div class="text-muted mx-2 w-25">
+        Pagina: {{ page }} van {{ pages }}
+    </div>
+    <div class="pagination-buttons d-flex flex-row justify-content-start w-25">
+        <button
+            class="btn-app btn-app-icon pagination-button back"
+            {{ (page == 1) ? 'disabled' : '' }}
+            data-page="back"
+            data-min="{{ 1 }}"
+            data-action="click->entity--index-table#paginate"
+        >
+            <i class="fa fa-angle-left"></i>
+        </button>
+        {% for pageIdx in 1..pages %}
+            <button class="btn-app btn-app-icon pagination-button {{ pageIdx == page ? 'active' : '' }}" data-page="{{ pageIdx }}" data-action="click->entity--index-table#paginate">
+                {{ pageIdx }}
+            </button>
+        {% endfor %}
+        <button
+            class="btn-app btn-app-icon pagination-button next"
+            {{ (page == pages) ? 'disabled' : '' }}
+            data-page="next"
+            data-max="{{ pages }}"
+            data-action="click->entity--index-table#paginate"
+        >
+            <i class="fa fa-angle-right"></i>
+        </button>
+    </div>
+    <div class="w-25">
+
+    </div>
+</div>
+    {% if app.request.query.get('dialog') != '1' %}
+<div class="d-flex flex-row gap-3 m-2">
+    {% for button in buttons %}
+        {% if button.type === 'link' %}
+        <a id="{{ button.id }}" href="{{ path(button.route) }}" class="btn-app btn-app-{{ button.css }}">
+            {{ button.label }}
+        </a>
+        {% elseif button.type === 'submit' %}
+        <button
+            type="submit"
+            id="{{ button.id }}"
+            name="action"
+            value="{{ button.action }}"
+            class="btn-app btn-app-{{ button.css }}"
+            {% if showTableCheckboxes %}
+                data-action="click->entity--index-table#confirmBulkAction"
+                data-confirm-message="{{ button.confirmMessage|default('Weet je zeker dat je deze actie wil uitvoeren voor de geselecteerde items?') }}"
+            {% endif %}
+        >
+            {{ button.label }}
+        </button>
+        {% endif %}
+    {% endfor %}
+</div>
+{% endif %}
+</form>
+</div>
