@@ -1,4 +1,5 @@
-<div data-controller="entity--index-table" class="{{ app.request.query.get('dialog') == '1' ? 'dialog-index-table' : '' }}">
+{% set indexId = 'entity-index-' ~ entity ~ '-' ~ random() %}
+<div data-controller="entity--index-table" class="entity-index {{ app.request.query.get('dialog') == '1' ? 'dialog-index-table' : '' }}">
 {% if app.request.query.get('dialog') != '1' %}
 <h2 class="m-2">{{ labelPlural }} - Overzichtspagina</h2>
 {% endif %}
@@ -16,9 +17,9 @@
 {% endblock %}
 
 <form
-    id="index-table-filter-form"
+    id="{{ indexId }}-filters"
     method="get"
-    action="{{ path(app.request.attributes.get('_route')) }}"
+    action="{{ path(app.request.attributes.get('_route'), app.request.attributes.get('_route_params')) }}"
     data-entity--index-table-target="form"
     data-action="submit->entity--index-table#search"
     data-current-page="{{ page }}"
@@ -32,7 +33,7 @@
     <input type="hidden" name="sortDirection" value="{{ sortDirection }}">
 {% endif %}
 </form>
-<form method="post" action="{{ path(app.request.attributes.get('_route')) }}{{ app.request.queryString ? '?' ~ app.request.queryString : '' }}">
+<form method="post" action="{{ path(app.request.attributes.get('_route'), app.request.attributes.get('_route_params')) }}{{ app.request.queryString ? '?' ~ app.request.queryString : '' }}">
 <input type="hidden" name="_token" value="{{ csrf_token('index_bulk_action_' ~ app.request.attributes.get('_route')) }}">
 {% if app.request.query.get('dialog') %}
     <input type="hidden" name="dialog" value="{{ app.request.query.get('dialog') }}">
@@ -56,7 +57,21 @@
 {% endif %}
 {% block before_table %}
 {% endblock %}
-<table class="table table-striped" id="{{ entity }}-index-table">
+    <div class="entity-index-mobile-toolbar" role="group" aria-label="Overzicht aanpassen">
+        <button type="button" class="btn-app btn-app-icon text-muted" data-popup="sort" data-action="entity--index-table#openPopup">
+            <i class="fa fa-sort text-color-primary"></i>
+            Sorteren
+        </button>
+        <button type="button" class="btn-app btn-app-icon text-muted" data-popup="search" data-action="entity--index-table#openPopup">
+            <i class="fa fa-magnifying-glass text-color-primary"></i>
+            Zoeken
+        </button>
+        <button type="button" class="btn-app btn-app-icon text-muted" data-popup="filter" data-action="entity--index-table#openPopup">
+            <i class="fa fa-filter text-color-primary"></i>
+            Filteren
+        </button>
+    </div>
+<table class="table table-striped entity-index-table" id="{{ entity }}-index-table">
     <thead>
         <tr>
         {% if showTableCheckboxes %}
@@ -84,7 +99,7 @@
         </tr>
     </thead>
     <tbody>
-        <tr>
+        <tr class="entity-index-filters">
             {% if showTableCheckboxes %}
                 <td></td>
             {% endif %}
@@ -92,9 +107,9 @@
             {% for field, column in columns %}
                 {% set i = i + 1 %}
                 <td>
-                    <input form="index-table-filter-form" type="hidden" name="filter{{ i }}Field" value="{{ field }}">
+                    <input form="{{ indexId }}-filters" type="hidden" name="filter{{ i }}Field" value="{{ field }}">
                     <input
-                        form="index-table-filter-form"
+                        form="{{ indexId }}-filters"
                         name="filter{{ i }}Value"
                         value="{{ app.request.query.get('filter' ~ i ~ 'Value') }}"
                         placeholder="Zoek..."
@@ -129,20 +144,25 @@
                 {% if key starts with '_' %}
 
                 {% else %}
-                <td>
+                <td data-column-label="{{ columns[key].label }}">
+                    <span class="entity-index-card-label">{{ columns[key].label }}</span>
+                    <div class="entity-index-card-value">
                     {% if columns[key].raw|default(false) %}
                         {{ column|raw }}
                     {% else %}
                         {{ column }}
                     {% endif %}
+                    </div>
                 </td>
                 {% endif %}
             {% endfor %}
         </tr>
+    {% else %}
+        <tr><td colspan="{{ columns|length + (showTableCheckboxes ? 1 : 0) }}">Geen resultaten gevonden.</td></tr>
     {% endfor %}
     </tbody>
 </table>
-<button type="submit" form="index-table-filter-form" hidden></button>
+<button type="submit" form="{{ indexId }}-filters" hidden></button>
 <div class="table-info d-flex justify-content-between flex-row">
     <div class="text-muted mx-2 w-25">
         Pagina: {{ page }} van {{ pages }}
@@ -202,4 +222,65 @@
 </div>
 {% endif %}
 </form>
+{% for popup, title in {sort: 'Sorteren', search: 'Zoeken', filter: 'Filteren'} %}
+<dialog class="entity-index-popup" data-index-popup="{{ popup }}" aria-labelledby="{{ indexId }}-{{ popup }}-title">
+    <form data-popup="{{ popup }}" data-action="submit->entity--index-table#applyPopup">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3 id="{{ indexId }}-{{ popup }}-title" class="h5 mb-0">{{ title }}</h3>
+            <button type="button" class="btn-close" aria-label="Sluiten" data-action="entity--index-table#closePopup"></button>
+        </div>
+        {% if popup == 'sort' or popup == 'search' %}
+            <label class="form-label" for="{{ indexId }}-{{ popup }}-field">Kolom</label>
+            <select class="form-select mb-3" id="{{ indexId }}-{{ popup }}-field" name="field" {% if popup == 'search' %}data-action="change->entity--index-table#syncSearchField"{% endif %}>
+                {% for field, column in columns %}
+                    {% if popup == 'sort' or column.filter|default(null) is not null %}
+                    <option value="{{ field }}" {{ popup == 'sort' and sortField == field ? 'selected' : '' }}>{{ column.label }}</option>
+                    {% endif %}
+                {% endfor %}
+            </select>
+            {% if popup == 'sort' %}
+                <label class="form-label" for="{{ indexId }}-sort-direction">Volgorde</label>
+                <select class="form-select mb-3" id="{{ indexId }}-sort-direction" name="direction">
+                    <option value="ASC" {{ sortDirection == 'ASC' ? 'selected' : '' }}>Oplopend</option>
+                    <option value="DESC" {{ sortDirection == 'DESC' ? 'selected' : '' }}>Aflopend</option>
+                </select>
+            {% else %}
+                <label class="form-label" for="{{ indexId }}-search-value">Zoekterm</label>
+                <input class="form-control mb-3" type="search" id="{{ indexId }}-search-value" name="value" placeholder="Zoek...">
+            {% endif %}
+        {% else %}
+            <p class="text-muted">Vul één of meer kolommen in om te filteren.</p>
+            {% for field, column in columns %}
+                {% if column.filter|default(null) is not null %}
+                <label class="form-label" for="{{ indexId }}-filter-{{ loop.index }}">{{ column.label }}</label>
+                <input class="form-control mb-3" id="{{ indexId }}-filter-{{ loop.index }}" data-filter-index="{{ loop.index }}" placeholder="Zoek...">
+                {% endif %}
+            {% endfor %}
+            <button type="button" class="btn btn-link" data-action="entity--index-table#clearPopupFilters">Filters wissen</button>
+        {% endif %}
+        <div class="d-flex justify-content-end gap-2 mt-3">
+            <button type="button" class="btn btn-outline-secondary" data-action="entity--index-table#closePopup">Annuleren</button>
+            <button type="submit" class="btn btn-primary">Toepassen</button>
+        </div>
+    </form>
+</dialog>
+{% endfor %}
+<style>
+.entity-index-mobile-toolbar, .entity-index-card-label { display: none; }
+.entity-index-popup { border: 0; border-radius: 1rem; padding: 1.25rem; width: min(32rem, calc(100% - 2rem)); max-height: 85dvh; overflow-y: auto; }
+.entity-index-popup::backdrop { background: rgb(0 0 0 / 45%); }
+.entity-index-card-value { overflow-wrap: anywhere; }
+@media (max-width: 767.98px) {
+    .entity-index-mobile-toolbar { display: flex; flex-wrap: wrap; gap: .5rem; margin: .75rem .5rem; }
+    .entity-index-table, .entity-index-table tbody { display: block; width: 100%; }
+    .entity-index-table thead, .entity-index-table .entity-index-filters { display: none; }
+    .entity-index-table .item-row { display: block; margin: .75rem .5rem; padding: .75rem; border: 1px solid var(--bs-border-color, #ddd); border-radius: .75rem; background: var(--bs-body-bg, white); }
+    .entity-index-table .item-row > td { display: block; border: 0; padding: .4rem; box-shadow: none; background: transparent; }
+    .entity-index-card-label { display: block; font-size: .8rem; font-weight: 600; color: var(--bs-secondary-color, #666); margin-bottom: .15rem; }
+    .entity-index .table-info { flex-wrap: wrap; gap: .75rem; }
+    .entity-index .table-info > .w-25 { width: auto !important; }
+    .entity-index .pagination-buttons { max-width: 100%; overflow-x: auto; }
+    .entity-index .pagination-button { flex-shrink: 0; }
+}
+</style>
 </div>
